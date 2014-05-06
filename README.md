@@ -27,12 +27,12 @@ pip install potsdb
 Usage
 ===
 ```
-import potsdb
+from potsdb import client as potsdb_client
 
 # minimum is hostname. port is defaulted to 4242:
-metrics = potsdb.client('hostname.local')
+metrics = potsdb_client('hostname.local')
 # all options:
-metrics = potsdb.client('hostname.local', port=4242, qsize=1000, host_tag=True, mps=100, check_host=True)
+metrics = potsdb_client('hostname.local', port=4242, qsize=1000, host_tag=True, mps=100, check_host=True)
 
 # qsize: Max Size of Queue
 # host_tag: True for automatic, string value for override, None for nothing

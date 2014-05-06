@@ -14,7 +14,7 @@ if __name__ == '__main__':
     setup(
         name=project_name,
         version=__version__,
-        author="Alex Sharp, Chris McClymont",
+        author="Alex Sharp, Chris McClymont, Samuel Marks",
         author_email="alex.sharp@orionvm.com",
         description=("A Python client for OpenTSDB which creates a separate "
                      "thread for TCP communication."),
