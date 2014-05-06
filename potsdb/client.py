@@ -1,21 +1,21 @@
-import socket
-import Queue
-import threading
-import time
-import random
-import string
+from socket import socket, AF_INET, SOCK_STREAM, gethostname
+from Queue import Queue, Full
+from threading import Event, Thread
+from time import time, sleep
+from random import random
+from string import ascii_letters, digits
 
 MPS_LIMIT = 100  # Limit on metrics per second to send to OpenTSDB
 
 _last_timestamp = None
 _last_metrics = set()
 
-_valid_metric_chars = set(string.ascii_letters + string.digits + '-_./')
+_valid_metric_chars = set(ascii_letters + digits + '-_./')
 
 
 def _mksocket(host, port, q, done, stop):
     """Returns a tcp socket to (host/port). Retries forever if connection fails"""
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s = socket(AF_INET, SOCK_STREAM)
     s.settimeout(2)
     while not stop.is_set():
         try:
@@ -31,7 +31,7 @@ def _push(host, port, q, done, mps, stop):
     retry_line = None
     #while (daemon == False and not done.is_set()) or parent_thread.is_alive():
     while not ( stop.is_set() or ( done.is_set() and retry_line == None and q.empty()) ):
-        stime = time.time()
+        stime = time()
 
         if sock == None:
             sock = _mksocket(host, port, q, done, stop)
@@ -58,12 +58,12 @@ def _push(host, port, q, done, mps, stop):
             retry_line = line  # can't really put back in q, so remember to retry this line
             continue
 
-        etime = time.time() - stime  #time that actually elapsed
+        etime = time() - stime  #time that actually elapsed
 
         #Expected value of wait_time is 1/MPS_LIMIT, ie. MPS_LIMIT per second.
-        wait_time = (2.0 * random.random()) / (mps)
+        wait_time = (2.0 * random()) / (mps)
         if wait_time > etime:  #if we should wait
-            time.sleep(wait_time - etime)  #then wait
+            sleep(wait_time - etime)  #then wait
 
     if sock:
         sock.close()
@@ -74,9 +74,9 @@ class Client():
                  mps=MPS_LIMIT, check_host=True):
         """Main tsdb client. Connect to host/port. Buffer up to qsize metrics"""
 
-        self.q = Queue.Queue(maxsize=qsize)
-        self.done = threading.Event()
-        self._stop = threading.Event()
+        self.q = Queue(maxsize=qsize)
+        self.done = Event()
+        self._stop = Event()
         self.host = host
         self.port = int(port)
         self.queued = 0
@@ -84,17 +84,17 @@ class Client():
         # Make initial check that the host is up, because once in the
         # background thread it will be silently ignored/retried
         if check_host == True:
-            temp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            temp_sock = socket(AF_INET, SOCK_STREAM)
             temp_sock.settimeout(3)
             temp_sock.connect((self.host, self.port))
             temp_sock.close()
 
         if host_tag == True:
-            self.host_tag = socket.gethostname()
+            self.host_tag = gethostname()
         elif isinstance(host_tag, str):
             self.host_tag = host_tag
 
-        self.t = threading.Thread(target=_push,
+        self.t = Thread(target=_push,
                                   args=(host, self.port, self.q, self.done, mps, self._stop))
         #self.t.daemon = daemon
         self.t.daemon = True
@@ -117,7 +117,7 @@ class Client():
             tags['host'] = self.host_tag
 
         # get timestamp from system time, unless it's supplied as a tag
-        timestamp = int(tags.pop('timestamp', time.time()))
+        timestamp = int(tags.pop('timestamp', time()))
 
         assert not self.done.is_set(), "tsdb object has been closed"
         assert tags != {}, "Need at least one tag"
@@ -143,7 +143,7 @@ class Client():
         try:
             self.q.put(line, False)
             self.queued += 1
-        except Queue.Full:
+        except Full:
             self.q.get()  #Drop the oldest metric to make room
             self.q.put(line, False)
 
@@ -155,7 +155,7 @@ class Client():
         """Close then block waiting for background thread to finish"""
         self.close()
         while self.t.is_alive():
-            time.sleep(0.05)
+            sleep(0.05)
 
     def stop(self):
         self._stop.set()
